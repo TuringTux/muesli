@@ -26,6 +26,7 @@ from muesli.web.forms import *
 from muesli.allocation import Allocation
 from muesli.mail import Message, sendMail
 from muesli.web.viewsExam import MatplotlibView
+from muesli.web.tooltips import lecture_edit_tooltips
 
 from collections import defaultdict
 
@@ -279,7 +280,8 @@ class Edit:
                 'categories': utils.categories,
                 'exams': exams,
                 'assistants': assistants,
-                'form': form}
+                'form': form,
+                'tooltips': lecture_edit_tooltips}
 
 @view_config(route_name='lecture_delete', context=LectureContext, permission='delete_lecture')
 def delete(request):

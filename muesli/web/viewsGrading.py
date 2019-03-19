@@ -214,35 +214,15 @@ class EnterGradesBasic:
             self.request.session.flash('Achtung, die Noten sind noch nicht abgespeichert!', queue='errors')
         return grades, error_msgs
 
-    def __call__(self):
-        exam_id = self.request.GET.get('students', None)
-        grading, formula = self.update_grading_formula()
-        lecture_students = self.get_lecture_students(grading)
-        exam_ids, examvars, varsForExam = self.get_exam_vars(grading)
-        grades = self.get_current_grades(grading, lecture_students, exam_ids)
-
-        error_msgs = []
-        grades, error_msgs = self.update_grades_with_post_params(grades, lecture_students, grading, error_msgs)
-        grades = self.populate_with_exam_results(grades, lecture_students, grading)
-        grades, error_msgs = self.apply_formula(grades, formula, lecture_students, grading, varsForExam, error_msgs)
-
-        #self.request.javascript.append('prototype.js')
-        self.request.javascript.append('jquery/jquery.min.js')
-        self.request.javascript.append('jquery/jquery.fancybox.min.js')
-        #grades = {key: value for key,value in grades.items()}
-
-        #create the diagram using pyplot
-
-        #get a list of calculated grades
-        #if no grade is calculated yet then grades[student_id]['calc'] contains an empty string and would cause an exception when converted to a float
+    def generate_histogram(self, grades):
         grades_list = [float(grades[student_id]['calc']) for student_id in grades.keys() if not grades[student_id]['calc'] == '']
 
         if len(grades_list) > 0:
 
-            #count occurences of grades and save it in a list as tuple (grade, count)
+            # count occurences of grades and save it in a list as tuple (grade, count)
             tuple_list = list(Counter(grades_list).items())
 
-            #sort the list by grades
+            # sort the list by grades
             tuple_list = sorted(tuple_list, key=lambda x: x[0])
 
             labels = [x[0] for x in tuple_list]
@@ -269,7 +249,7 @@ class EnterGradesBasic:
             output = io.BytesIO()
             fig.savefig(output, format='png', dpi=50, bbox_inches='tight')
             pyplot.close(fig)
-            #encode image as base64 so it can be displayed using html
+            # encode image as base64 so it can be displayed using html
             encoded_diagram = base64.b64encode(output.getvalue())
             output.close()
 
@@ -290,6 +270,30 @@ class EnterGradesBasic:
             #empty png image encoded in base64
             encoded_diagram = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=='
             percentage_message = ''
+        return encoded_diagram, percentage_message
+
+    def __call__(self):
+        exam_id = self.request.GET.get('students', None)
+        grading, formula = self.update_grading_formula()
+        lecture_students = self.get_lecture_students(grading)
+        exam_ids, examvars, varsForExam = self.get_exam_vars(grading)
+        grades = self.get_current_grades(grading, lecture_students, exam_ids)
+
+        error_msgs = []
+        grades, error_msgs = self.update_grades_with_post_params(grades, lecture_students, grading, error_msgs)
+        grades = self.populate_with_exam_results(grades, lecture_students, grading)
+        grades, error_msgs = self.apply_formula(grades, formula, lecture_students, grading, varsForExam, error_msgs)
+
+        #self.request.javascript.append('prototype.js')
+        self.request.javascript.append('jquery/jquery.min.js')
+        self.request.javascript.append('jquery/jquery.fancybox.min.js')
+        #grades = {key: value for key,value in grades.items()}
+
+        #create the diagram using pyplot
+
+        #get a list of calculated grades
+        #if no grade is calculated yet then grades[student_id]['calc'] contains an empty string and would cause an exception when converted to a float
+        encoded_diagram, percentage_message = self.generate_histogram(grades)
 
         return {'grading': grading,
                 'error_msg': '\n'.join(error_msgs),

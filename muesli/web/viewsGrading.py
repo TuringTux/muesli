@@ -98,7 +98,8 @@ class EnterGradesBasic:
         self.request = request
         self.db = self.request.db
         self.return_json = False
-    def __call__(self):
+
+    def update_grading_formula(self):
         grading = self.request.context.grading
         formula = self.request.GET.get('formula', None)
         if formula:
@@ -106,27 +107,35 @@ class EnterGradesBasic:
             self.db.commit()
         else:
             formula = grading.formula
+        return grading, formula
+
+    def get_lecture_students(self, grading):
         exam_id = self.request.GET.get('students', None)
         if exam_id:
             exam = self.request.db.query(models.Exam).get(exam_id)
         else: exam=None
         student_id = self.request.GET.get('student', None)
-        lecture_students = grading.lecture.lecture_students_for_tutorials([])\
-                .options(sqlalchemy.orm.joinedload(models.LectureStudent.student))
+        lecture_students = grading.lecture.lecture_students_for_tutorials([]) \
+            .options(sqlalchemy.orm.joinedload(models.LectureStudent.student))
         if student_id:
             lecture_students = lecture_students.filter(models.LectureStudent.student_id == student_id)
         if exam:
-            lecture_students = lecture_students\
-                    .join(models.ExerciseStudent, models.LectureStudent.student_id==models.ExerciseStudent.student_id)\
-                    .join(models.Exercise)\
-                    .join(models.Exam)\
-                    .filter(models.Exam.id==exam_id)
-        lecture_students = lecture_students.all()
-        gradesQuery = grading.student_grades.filter(models.StudentGrade.student_id.in_([ls.student_id for ls in lecture_students]))
-        grades = utils.autovivify()
+            lecture_students = lecture_students \
+                .join(models.ExerciseStudent, models.LectureStudent.student_id==models.ExerciseStudent.student_id) \
+                .join(models.Exercise) \
+                .join(models.Exam) \
+                .filter(models.Exam.id==exam_id)
+        return lecture_students.all()
+
+    def get_exam_vars(self, grading):
         exam_ids = [e.id for e in grading.exams]
         examvars = dict([['$%i' % i, e.id] for i,e in enumerate(grading.exams)])
         varsForExam = dict([[examvars[var], var] for var in examvars ])
+        return exam_ids, examvars, varsForExam
+
+    def get_current_grades(self, grading, lecture_students, exam_ids):
+        grades = utils.autovivify()
+        gradesQuery = grading.student_grades.filter(models.StudentGrade.student_id.in_([ls.student_id for ls in lecture_students]))
         for ls in lecture_students:
             grades[ls.student_id]['grade'] = ''
             grades[ls.student_id]['gradestr'] = ''
@@ -136,13 +145,9 @@ class EnterGradesBasic:
         for grade in gradesQuery:
             grades[grade.student_id]['grade'] = grade
             grades[grade.student_id]['gradestr'] = grade.grade
-        #for ls in lecture_students:
-        #       if not grades[ls.student_id]['grade']:
-        #               studentGrade = models.StudentGrade()
-        #               studentGrade.student = ls.student
-        #               studentGrade.grading = grading
-        #               grades[ls.student_id]['grade'] = studentGrade
-        #               self.db.add(studentGrade)
+        return grades
+
+    def update_grades_with_post_params(self, grades, lecture_students, grading, error_msgs):
         if self.request.method == 'POST':
             for ls in lecture_students:
                 param = 'grade-%u' % (ls.student_id)
@@ -167,28 +172,32 @@ class EnterGradesBasic:
                             error_msgs.append('Could not convert "%s" (%s)'%(value, ls.student.name()))
         if self.db.new or self.db.dirty or self.db.deleted:
             self.db.commit()
+        return grades, error_msgs
+
+    def populate_with_exam_results(self, grades, lecture_students, grading):
         for exam in grading.exams:
-            results = exam.getResults(students = lecture_students)
+            results = exam.getResults(students=lecture_students)
             for result in results:
                 grades[result.student_id]['exams'][exam.id]['points'] = result.points
-            if exam.admission!=None or exam.registration!=None or exam.medical_certificate!=None:
+            if exam.admission is not None or exam.registration is not None or exam.medical_certificate is not None:
                 student_ids = [ls.student_id for ls in lecture_students]
                 admissions = exam.exam_admissions
                 for a in admissions:
                     if a.student_id in student_ids:
-                        if exam.admission!=None:
+                        if exam.admission is not None:
                             grades[a.student_id]['exams'][exam.id]['admission'] = a.admission
-                        if exam.registration!=None:
+                        if exam.registration is not None:
                             grades[a.student_id]['exams'][exam.id]['registration'] = a.registration
-                        if exam.medical_certificate!=None:
+                        if exam.medical_certificate is not None:
                             grades[a.student_id]['exams'][exam.id]['medical_certificate'] = a.medical_certificate
-        error_msgs = []
+        return grades
+
+    def apply_formula(self, grades, formula, lecture_students, grading, varsForExam, error_msgs):
         if formula:
             parser = Parser()
             try:
                 parser.parseString(formula)
                 for ls in lecture_students:
-                #print(student)
                     d = {}
                     for exam in grading.exams:
                         result = grades[ls.student_id]['exams'][exam.id]['points']
@@ -203,6 +212,20 @@ class EnterGradesBasic:
                 error_msgs.append(str(err))
         if 'fill' in self.request.GET:
             self.request.session.flash('Achtung, die Noten sind noch nicht abgespeichert!', queue='errors')
+        return grades, error_msgs
+
+    def __call__(self):
+        exam_id = self.request.GET.get('students', None)
+        grading, formula = self.update_grading_formula()
+        lecture_students = self.get_lecture_students(grading)
+        exam_ids, examvars, varsForExam = self.get_exam_vars(grading)
+        grades = self.get_current_grades(grading, lecture_students, exam_ids)
+
+        error_msgs = []
+        grades, error_msgs = self.update_grades_with_post_params(grades, lecture_students, grading, error_msgs)
+        grades = self.populate_with_exam_results(grades, lecture_students, grading)
+        grades, error_msgs = self.apply_formula(grades, formula, lecture_students, grading, varsForExam, error_msgs)
+
         #self.request.javascript.append('prototype.js')
         self.request.javascript.append('jquery/jquery.min.js')
         self.request.javascript.append('jquery/jquery.fancybox.min.js')

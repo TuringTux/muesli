@@ -214,7 +214,16 @@ class EnterGradesBasic:
             self.request.session.flash('Achtung, die Noten sind noch nicht abgespeichert!', queue='errors')
         return grades, error_msgs
 
-    def generate_histogram(self, grades):
+    def generate_histogram(self):
+        grading = self.request.context.grading
+        formula = self.request.GET.get('formula', grading.formula)
+        lecture_students = self.get_lecture_students(grading)
+        exam_ids, examvars, varsForExam = self.get_exam_vars(grading)
+        grades = self.get_current_grades(grading, lecture_students, exam_ids)
+
+        error_msgs = []
+        grades = self.populate_with_exam_results(grades, lecture_students, grading)
+        grades, error_msgs = self.apply_formula(grades, formula, lecture_students, grading, varsForExam, error_msgs)
         grades_list = [float(grades[student_id]['calc']) for student_id in grades.keys() if not grades[student_id]['calc'] == '']
 
         if len(grades_list) > 0:
@@ -293,7 +302,7 @@ class EnterGradesBasic:
 
         #get a list of calculated grades
         #if no grade is calculated yet then grades[student_id]['calc'] contains an empty string and would cause an exception when converted to a float
-        encoded_diagram, percentage_message = self.generate_histogram(grades)
+        encoded_diagram, percentage_message = self.generate_histogram()
 
         return {'grading': grading,
                 'error_msg': '\n'.join(error_msgs),

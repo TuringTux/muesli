@@ -214,74 +214,6 @@ class EnterGradesBasic:
             self.request.session.flash('Achtung, die Noten sind noch nicht abgespeichert!', queue='errors')
         return grades, error_msgs
 
-    def generate_histogram(self):
-        grading = self.request.context.grading
-        formula = self.request.GET.get('formula', grading.formula)
-        lecture_students = self.get_lecture_students(grading)
-        exam_ids, examvars, varsForExam = self.get_exam_vars(grading)
-        grades = self.get_current_grades(grading, lecture_students, exam_ids)
-
-        error_msgs = []
-        grades = self.populate_with_exam_results(grades, lecture_students, grading)
-        grades, error_msgs = self.apply_formula(grades, formula, lecture_students, grading, varsForExam, error_msgs)
-        grades_list = [float(grades[student_id]['calc']) for student_id in grades.keys() if not grades[student_id]['calc'] == '']
-
-        if len(grades_list) > 0:
-
-            # count occurences of grades and save it in a list as tuple (grade, count)
-            tuple_list = list(Counter(grades_list).items())
-
-            # sort the list by grades
-            tuple_list = sorted(tuple_list, key=lambda x: x[0])
-
-            labels = [x[0] for x in tuple_list]
-            values = [x[1] for x in tuple_list]
-
-            indexes = numpy.arange(len(labels))
-            width = 1
-
-            pyplot.rcParams.update({'font.size': 20})
-
-            fig = pyplot.figure(figsize=(12, 9))
-
-            ax = fig.add_subplot(111)
-
-            pyplot.sca(ax)
-            pyplot.bar(indexes, values, width, edgecolor='black', color='red')
-            pyplot.xticks(indexes + width - 1, labels)
-            pyplot.xlabel('Note')
-            pyplot.ylabel('Anzahl')
-
-            yint = range(min(values), math.ceil(max(values)) + 1, math.ceil(max(values)/10))
-            pyplot.yticks(yint)
-
-            percentage_message = []
-
-            grades_count = len(grades_list)
-            percentage_list = []
-            for x in range(1, 5):
-                percentage_list.append(100*sum(grade <= x for grade in grades_list)/grades_count)
-
-            percentage_message.append('• ' + str(percentage_list[0]) + '% haben die Note 1.0\n')
-            percentage_message.append('• ' + str(percentage_list[1]) + '% haben die Note 2.0 oder besser\n')
-            percentage_message.append('• ' + str(percentage_list[2]) + '% haben die Note 3.0 oder besser\n')
-            percentage_message.append('• ' + str(percentage_list[3]) + '% haben die Note 4.0 oder besser\n')
-            percentage_message.append('• ' + str(100-percentage_list[3]) + '% haben die Note 5.0\n')
-
-            pyplot.text(-0.5, -1.2, "".join(percentage_message), verticalalignment='bottom')
-
-            output = io.BytesIO()
-            fig.savefig(output, format='png', dpi=50, bbox_inches='tight')
-            pyplot.close(fig)
-            # encode image as base64 so it can be displayed using html
-            encoded_diagram = base64.b64encode(output.getvalue())
-            output.close()
-
-        else:
-            #empty png image encoded in base64
-            encoded_diagram = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=='
-        return encoded_diagram
-
     def __call__(self):
         exam_id = self.request.GET.get('students', None)
         grading, formula = self.update_grading_formula()
@@ -299,10 +231,6 @@ class EnterGradesBasic:
         self.request.javascript.append('jquery/jquery.fancybox.min.js')
         #grades = {key: value for key,value in grades.items()}
 
-        #create the diagram using pyplot
-
-        encoded_diagram = self.generate_histogram()
-
         return {'grading': grading,
                 'error_msg': '\n'.join(error_msgs),
                 'formula': formula,
@@ -312,8 +240,7 @@ class EnterGradesBasic:
                 'examvars': examvars,
                 'varsForExam': varsForExam,
                 'lecture_students': lecture_students,
-                'tooltips': grading_edit_tooltips,
-                'img': encoded_diagram}
+                'tooltips': grading_edit_tooltips}
 
 @view_config(route_name='grading_enter_grades', renderer='muesli.web:templates/grading/enter_grades.pt', context=GradingContext, permission='edit')
 class EnterGrades(EnterGradesBasic):
@@ -336,6 +263,78 @@ class GetRow(EnterGradesBasic):
                 value['calc'] = str(value['calc'])
         return {'grades': grades,
                 'error_msg': result['error_msg']}
+
+@view_config(route_name='grading_formula_histogram', context=GradingContext, permission='edit')
+class FormulaHistogram(EnterGradesBasic):
+    def generate_histogram(self):
+        grading = self.request.context.grading
+        formula = self.request.GET.get('formula', grading.formula)
+        lecture_students = self.get_lecture_students(grading)
+        exam_ids, examvars, varsForExam = self.get_exam_vars(grading)
+        grades = self.get_current_grades(grading, lecture_students, exam_ids)
+
+        error_msgs = []
+        grades = self.populate_with_exam_results(grades, lecture_students, grading)
+        grades, error_msgs = self.apply_formula(grades, formula, lecture_students, grading, varsForExam, error_msgs)
+        grades_list = [float(grades[student_id]['calc']) for student_id in grades.keys() if not grades[student_id]['calc'] == '']
+
+        if not grades_list:
+            raise HTTPBadRequest("Es sind existieren keine Noten für diese Benotung.")
+
+        # count occurences of grades and save it in a list as tuple (grade, count)
+        tuple_list = list(Counter(grades_list).items())
+
+        # sort the list by grades
+        tuple_list = sorted(tuple_list, key=lambda x: x[0])
+
+        labels = [x[0] for x in tuple_list]
+        values = [x[1] for x in tuple_list]
+
+        indexes = numpy.arange(len(labels))
+        width = 1
+
+        pyplot.rcParams.update({'font.size': 20})
+
+        fig = pyplot.figure(figsize=(12, 9))
+
+        ax = fig.add_subplot(111)
+
+        pyplot.sca(ax)
+        pyplot.bar(indexes, values, width, edgecolor='black', color='red')
+        pyplot.xticks(indexes + width - 1, labels)
+        pyplot.xlabel('Note')
+        pyplot.ylabel('Anzahl')
+
+        yint = range(min(values), math.ceil(max(values)) + 1, math.ceil(max(values)/10))
+        pyplot.yticks(yint)
+
+        percentage_message = []
+
+        grades_count = len(grades_list)
+        percentage_list = []
+        for x in range(1, 5):
+            percentage_list.append(100*sum(grade <= x for grade in grades_list)/grades_count)
+
+        percentage_message.append('• ' + str(percentage_list[0]) + '% haben die Note 1.0\n')
+        percentage_message.append('• ' + str(percentage_list[1]) + '% haben die Note 2.0 oder besser\n')
+        percentage_message.append('• ' + str(percentage_list[2]) + '% haben die Note 3.0 oder besser\n')
+        percentage_message.append('• ' + str(percentage_list[3]) + '% haben die Note 4.0 oder besser\n')
+        percentage_message.append('• ' + str(100-percentage_list[3]) + '% haben die Note 5.0\n')
+
+        pyplot.text(-0.5, -1.2, "".join(percentage_message), verticalalignment='bottom')
+
+        return fig
+
+    def __call__(self):
+        output = io.BytesIO()
+        fig = self.generate_histogram()
+        fig.savefig(output, format='png', dpi=50, bbox_inches='tight')
+        pyplot.close(fig)
+        response = Response()
+        response.content_type = 'image/png'
+        response.body = output.getvalue()
+        output.close()
+        return response
 
 class ExcelView:
     def __init__(self, request):

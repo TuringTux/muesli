@@ -255,13 +255,6 @@ class EnterGradesBasic:
             yint = range(min(values), math.ceil(max(values)) + 1, math.ceil(max(values)/10))
             pyplot.yticks(yint)
 
-            output = io.BytesIO()
-            fig.savefig(output, format='png', dpi=50, bbox_inches='tight')
-            pyplot.close(fig)
-            # encode image as base64 so it can be displayed using html
-            encoded_diagram = base64.b64encode(output.getvalue())
-            output.close()
-
             percentage_message = []
 
             grades_count = len(grades_list)
@@ -269,17 +262,25 @@ class EnterGradesBasic:
             for x in range(1, 5):
                 percentage_list.append(100*sum(grade <= x for grade in grades_list)/grades_count)
 
-            percentage_message.append(str(percentage_list[0]) + '% haben die Note 1.0\n')
-            percentage_message.append(str(percentage_list[1]) + '% haben die Note 2.0 oder besser\n')
-            percentage_message.append(str(percentage_list[2]) + '% haben die Note 3.0 oder besser\n')
-            percentage_message.append(str(percentage_list[3]) + '% haben die Note 4.0 oder besser\n')
-            percentage_message.append(str(100-percentage_list[3]) + '% haben die Note 5.0\n')
+            percentage_message.append('• ' + str(percentage_list[0]) + '% haben die Note 1.0\n')
+            percentage_message.append('• ' + str(percentage_list[1]) + '% haben die Note 2.0 oder besser\n')
+            percentage_message.append('• ' + str(percentage_list[2]) + '% haben die Note 3.0 oder besser\n')
+            percentage_message.append('• ' + str(percentage_list[3]) + '% haben die Note 4.0 oder besser\n')
+            percentage_message.append('• ' + str(100-percentage_list[3]) + '% haben die Note 5.0\n')
+
+            pyplot.text(-0.5, -1.2, "".join(percentage_message), verticalalignment='bottom')
+
+            output = io.BytesIO()
+            fig.savefig(output, format='png', dpi=50, bbox_inches='tight')
+            pyplot.close(fig)
+            # encode image as base64 so it can be displayed using html
+            encoded_diagram = base64.b64encode(output.getvalue())
+            output.close()
 
         else:
             #empty png image encoded in base64
             encoded_diagram = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=='
-            percentage_message = ''
-        return encoded_diagram, percentage_message
+        return encoded_diagram
 
     def __call__(self):
         exam_id = self.request.GET.get('students', None)
@@ -300,9 +301,7 @@ class EnterGradesBasic:
 
         #create the diagram using pyplot
 
-        #get a list of calculated grades
-        #if no grade is calculated yet then grades[student_id]['calc'] contains an empty string and would cause an exception when converted to a float
-        encoded_diagram, percentage_message = self.generate_histogram()
+        encoded_diagram = self.generate_histogram()
 
         return {'grading': grading,
                 'error_msg': '\n'.join(error_msgs),
@@ -314,8 +313,7 @@ class EnterGradesBasic:
                 'varsForExam': varsForExam,
                 'lecture_students': lecture_students,
                 'tooltips': grading_edit_tooltips,
-                'img': encoded_diagram,
-                'percentage_message': percentage_message}
+                'img': encoded_diagram}
 
 @view_config(route_name='grading_enter_grades', renderer='muesli.web:templates/grading/enter_grades.pt', context=GradingContext, permission='edit')
 class EnterGrades(EnterGradesBasic):

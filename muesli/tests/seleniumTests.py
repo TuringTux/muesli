@@ -4,17 +4,24 @@ from selenium import webdriver
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
+import muesli.web
+from webtest.http import StopableWSGIServer
 
 
 class SeleniumTests(unittest.TestCase):
     def setUp(self):
+        app = muesli.web.main()
+        self.server = StopableWSGIServer.create(app, host="127.0.0.1", port="8080")
         options = webdriver.ChromeOptions()
         options.add_argument('--headless')
         options.add_argument('--whitelisted-ips')
         options.add_argument('127.0.0.1')
         options.add_argument('--no-sandbox')
         self.driver = webdriver.Chrome(chrome_options=options)
-        self.driver.get("localhost:8080")
+        self.driver.get("http://127.0.0.1:8080")
+
+    def tearDown(self):
+        self.server.shutdown()
 
     def explicit_wait_visibility(self, element):
         """
@@ -164,8 +171,3 @@ class SeleniumUserLoggedInTests(SeleniumTests):
         statistics.click()
 
         self.explicit_wait_visibility("//img[@src='/exam/histogram_for_exam/13417/']")
-
-
-if __name__ == "__main__":
-    import pytest
-    pytest.main(['-x', 'muesli/tests/seleniumTests.py'])

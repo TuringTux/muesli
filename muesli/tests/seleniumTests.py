@@ -2,7 +2,12 @@ from selenium import webdriver
 import time
 
 def initDriver():
-    driver = webdriver.Chrome("SeleniumDriver/chromedriver")
+    options = webdriver.ChromeOptions()
+    options.add_argument('--headless')
+    options.add_argument('--whitelisted-ips')
+    options.add_argument('127.0.0.1')
+    options.add_argument('--no-sandbox')
+    driver = webdriver.Chrome(chrome_options=options)
     driver.get("https://localhost:8080")
 
     return driver

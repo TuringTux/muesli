@@ -70,20 +70,20 @@ class SeleniumUserLoggedInTests(SeleniumTests):
         lecture_yaml.click()
 
         lecture_yaml_all = self.explicit_wait_clickable("//a[@href='/lecture/export_yaml"
-                                                           "_details?show_all=1']")
+                                                        "_details?show_all=1']")
         lecture_yaml_all.click()
 
         lecture_tutorials_yaml = self.driver.find_element_by_xpath("//a[@href='/lecture/"
-                                                              "export_yaml_details']")
+                                                                   "export_yaml_details']")
         lecture_tutorials_yaml.click()
 
         lecture_tutorials_yaml_all = self.explicit_wait_clickable("//a[@href='/lecture/"
-                                                                     "export_yaml_details?show_all=1']")
+                                                                  "export_yaml_details?show_all=1']")
         lecture_tutorials_yaml_all.click()
 
         # Export all lectures and tutorials as excel file
         excel_link = self.explicit_wait_clickable("//a[@href='/lecture/export_excel/"
-                                                     "downloadDetailTutorials.xlsx']")
+                                                  "downloadDetailTutorials.xlsx']")
         excel_link.click()
 
         # Check one lecture and grading excel export
@@ -124,13 +124,13 @@ class SeleniumUserLoggedInTests(SeleniumTests):
         lecture_edit.click()
 
         # Check if tooltip exists and check text, variables should remain unused
-        tooltip_grading = self.explicit_wait_visibility("//p[contains(text(), 'Hier können "
-                                                           "Noten anhand von einer oder mehreren Klausuren/"
-                                                           "Testaten berechnet und eingetragen werden.')]")
+        self.explicit_wait_visibility("//p[contains(text(), 'Hier können "
+                                      "Noten anhand von einer oder mehreren Klausuren/"
+                                      "Testaten berechnet und eingetragen werden.')]")
 
-        tooltip_tutor = self.explicit_wait_visibility("//p[contains(text(), "
-                                                         "'Klicken Sie auf den Namen eines "
-                                                         "Tutors, um ihm/ihr eine Email zu schicken.')]")
+        self.explicit_wait_visibility("//p[contains(text(), "
+                                      "'Klicken Sie auf den Namen eines "
+                                      "Tutors, um ihm/ihr eine Email zu schicken.')]")
 
         # Check excel tooltip
         gradings = self.explicit_wait_clickable("//a[@href='/grading/edit/6692']")
@@ -138,9 +138,9 @@ class SeleniumUserLoggedInTests(SeleniumTests):
         grades = self.explicit_wait_clickable("//a[@href='/grading/enter_grades/6692']")
         grades.click()
 
-        excel_tooltip = self.explicit_wait_visibility("//p[contains(text(), 'Hier können Sie die "
-                                                         "Klausurergebnisse als Exceldatei (.xlsx) "
-                                                         "erstellen und herunterladen.')]")
+        self.explicit_wait_visibility("//p[contains(text(), 'Hier können Sie die "
+                                      "Klausurergebnisse als Exceldatei (.xlsx) "
+                                      "erstellen und herunterladen.')]")
 
     def test_histogram(self):
         """Check if histograms exist
